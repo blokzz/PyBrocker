@@ -1,20 +1,42 @@
 import asyncio
 import struct
+import os
+
+class LogManager:
+    def __init__(self , log_file="server.log"):
+        self.log_file = log_file
+        self.file = open(self.filename, "ab", buffering=0)
+    def write(self , message):
+        current_offset = self.file.tell()
+        msg_len = len(message)
+        entry = struct.pack("!I" ,msg_len) + message
+        self.file.write(entry)
+        return current_offset
 
 header_format = "!IB"
 header_size = struct.calcsize(header_format)
-
+log_manager = LogManager()
 async def handle_client(reader , writer):
     address = writer.get_extra_info('peername')
     print(f"ESTABLISHED CONNECTION WITH {address}")
+    loop = asyncio.get_running_loop()
     try:
         while True:
             header = await reader.readexactly(header_size)
             mes_length ,command= struct.unpack(header_format ,header)
 
             payload = await reader.readexactly(mes_length)
+            res = b""
+            if command == 1:
+                print(f"[{address}] PUBLISH: {len(payload)} BYTES")
+                offset = await loop.run_in_executor(None,log_manager.write , payload)
+                res = b"OK" + struct.pack("!Q", offset)
+            else:
+                print(f"UNKNOWN COMMAND: {command}")
+                res = b"ER"
+
+
             print(f"RECEIVED COMMAND FROM {address}:  {command} , PAYLOAD: {payload[:20]}...")
-            res = b"ok"
             writer.write(struct.pack("!I" ,len(res)) + res)
             await writer.drain()
 
