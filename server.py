@@ -12,10 +12,25 @@ class LogManager:
         entry = struct.pack("!I" ,msg_len) + message
         self.file.write(entry)
         return current_offset
+    def read(self , offset):
+        try:
+            with open(self.filename , "rb") as f:
+                f.seek(offset)
+                length_data = f.read(4)
+                if not length_data or len(length_data) < 4:
+                    return None
+                msg_len = struct.unpack("!I", length_data)[0]
+                payload = f.read(msg_len)
+                next_offset = offset + 4 + msg_len
+                return payload , next_offset
+        except FileNotFoundError:
+            return None
 
 header_format = "!IB"
 header_size = struct.calcsize(header_format)
 log_manager = LogManager()
+
+
 async def handle_client(reader , writer):
     address = writer.get_extra_info('peername')
     print(f"ESTABLISHED CONNECTION WITH {address}")
@@ -31,6 +46,9 @@ async def handle_client(reader , writer):
                 print(f"[{address}] PUBLISH: {len(payload)} BYTES")
                 offset = await loop.run_in_executor(None,log_manager.write , payload)
                 res = b"OK" + struct.pack("!Q", offset)
+            elif command ==2:
+                if len(payload)!=8 :
+                    res = b"ER_BAD_PAYLOAD"
             else:
                 print(f"UNKNOWN COMMAND: {command}")
                 res = b"ER"
