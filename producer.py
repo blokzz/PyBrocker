@@ -2,9 +2,12 @@
 import socket
 import struct
 
-def send_message(sock , command , text):
-    payload = text.encode('utf-8')
-    header = struct.pack("!IB" , len(payload) , command)
+def send_message(sock, command, topic, text):
+    msg_bytes = text.encode('utf-8')
+    topic_bytes = topic.encode('utf-8')
+    topic_len = len(topic_bytes)
+    payload = struct.pack("!B", topic_len) + topic_bytes + msg_bytes
+    header = struct.pack("!IB", len(payload), command)
     sock.sendall(header + payload)
     resp_len_data = sock.recv(4)
     resp_len = struct.unpack("!I", resp_len_data)[0]

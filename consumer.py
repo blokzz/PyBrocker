@@ -2,8 +2,12 @@ import socket
 import struct
 import time
 
-def fetch_message(sock, offset):
-    payload = struct.pack("!Q", offset)
+def fetch_message(sock, topic, offset):
+    topic_bytes = topic.encode('utf-8')
+    topic_len = len(topic_bytes)
+    offset_bytes = struct.pack("!Q", offset)
+    payload = struct.pack("!B", topic_len) + topic_bytes + offset_bytes
+    
     header = struct.pack("!IB", len(payload), 2)
     sock.sendall(header + payload)
     

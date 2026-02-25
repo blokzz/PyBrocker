@@ -3,18 +3,34 @@ import struct
 import os
 
 class LogManager:
-    def __init__(self , filename="server.log"):
-        self.filename = filename
-        self.file = open(self.filename, "ab", buffering=0)
-    def write(self , message):
-        current_offset = self.file.tell()
-        msg_len = len(message)
-        entry = struct.pack("!I" ,msg_len) + message
-        self.file.write(entry)
+    def __init__(self, data_dir="data"):
+        self.data_dir = data_dir
+        os.makedirs(self.data_dir, exist_ok=True) 
+        self.open_files = {} 
+
+    def _get_file_path(self, topic):
+        return os.path.join(self.data_dir, f"{topic}.log")
+
+    def write_message(self, topic, payload):
+        path = self._get_file_path(topic)
+        if topic not in self.open_files:
+            self.open_files[topic] = open(path, "ab", buffering=0)
+        
+        f = self.open_files[topic]
+        current_offset = f.tell()
+        
+        msg_len = len(payload)
+        entry = struct.pack("!I", msg_len) + payload
+        f.write(entry)
+        
         return current_offset
-    def read(self , offset):
+
+    def read_message(self, topic, offset):
+        path = self._get_file_path(topic)
+        if not os.path.exists(path):
+            return None
         try:
-            with open(self.filename , "rb") as f:
+            with open(path, "rb") as f:
                 f.seek(offset)
                 length_data = f.read(4)
                 if not length_data or len(length_data) < 4:
@@ -22,7 +38,8 @@ class LogManager:
                 msg_len = struct.unpack("!I", length_data)[0]
                 payload = f.read(msg_len)
                 next_offset = offset + 4 + msg_len
-                return payload , next_offset
+                
+                return payload, next_offset
         except FileNotFoundError:
             return None
 
@@ -42,17 +59,20 @@ async def handle_client(reader , writer):
 
             payload = await reader.readexactly(mes_length)
             res = b""
+            topic_length = payload[0] 
+            topic_name = payload[1:1+topic_length].decode('utf-8')
+            actual_data = payload[1+topic_length:]
             if command == 1:
-                print(f"[{address}] PUBLISH: {len(payload)} BYTES")
-                offset = await loop.run_in_executor(None,log_manager.write , payload)
+                print(f"[{address}] PUBLISH: {len(actual_data)} BYTES")
+                offset = await loop.run_in_executor(None, log_manager.write_message, topic_name, actual_data)
                 res = b"OK" + struct.pack("!Q", offset)
             elif command ==2:
-                if len(payload)!=8 :
+                if len(actual_data)!=8 :
                     res = b"ER_BAD_PAYLOAD"
                 else:
-                    requested_offset = struct.unpack("!Q", payload)[0]
+                    requested_offset = struct.unpack("!Q", actual_data)[0]
                     print(f"[{address}] FETCH FROM OFFSET: {requested_offset}")
-                    result = await loop.run_in_executor(None, log_manager.read_message, requested_offset)
+                    result = await loop.run_in_executor(None, log_manager.read_message, topic_name, requested_offset)
                     
                     if result:
                         msg_data, next_offset = result
