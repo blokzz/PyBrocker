@@ -34,7 +34,7 @@ def main():
     
     try:
         while True:
-            msg, next_offset = fetch_message(sock, current_offset)
+            msg, next_offset = fetch_message(sock,"wheather", current_offset)
             
             if msg:
                 print(f"RECEIVED FROM OFFSET {current_offset}: {msg}")

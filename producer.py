@@ -20,7 +20,7 @@ def main():
     
     for i in range(3):
         msg = f"Log message number {i}"
-        response = send_message(sock, 1, msg)
+        response = send_message(sock, 1,"wheather", msg)
         status = response[:2]
         offset = struct.unpack("!Q", response[2:])[0]
         print(f"sent: '{msg}' -> Status: {status}, Saved offset: {offset}")
